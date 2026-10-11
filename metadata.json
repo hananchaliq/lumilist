@@ -1,0 +1,6 @@
+{
+  "name": "LumiList",
+  "description": "A nature-inspired floating liquid-glass personal operating system and productivity dashboard with quick launcher, live USD/IDR forex terminal, Open-Meteo weather, daily planner with weekly progress analytics, and real-time prayer schedule.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-syne: 'Syne', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-jakarta: 'Plus Jakarta Sans', sans-serif;
+    --font-serif: 'Cormorant Garamond', serif;
+  }
+
+  body {
+    background-color: #050706;
+    color: #F4F5F0;
+    font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Forest & Moss Scrollbars (Option B & Weather Forecast) */
+.weather-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(184, 230, 106, 0.4) rgba(255, 255, 255, 0.03);
+}
+
+.weather-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.weather-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 9999px;
+  margin: 2px;
+}
+
+.weather-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(184, 230, 106, 0.35);
+  border-radius: 9999px;
+  border: 1px solid rgba(184, 230, 106, 0.15);
+  transition: background-color 0.2s ease;
+}
+
+.weather-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(184, 230, 106, 0.7);
+  box-shadow: 0 0 8px rgba(184, 230, 106, 0.4);
+}
+
+/* Global scrollbars for dark forest theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(8, 11, 8, 0.4);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(184, 230, 106, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(184, 230, 106, 0.5);
+}
