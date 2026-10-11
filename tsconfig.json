@@ -1,51 +1,30 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "useDefineForClassFields": true,
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "module": "ESNext",
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "paths": {
-      "@/*": [
-        "./*",
-        "./src/*"
+   "compilerOptions": {
+      "target": "ES2022",
+      "useDefineForClassFields": true,
+      "lib": ["ES2022", "DOM", "DOM.Iterable"],
+      "module": "ESNext",
+      "skipLibCheck": true,
+      "moduleResolution": "bundler",
+      "resolveJsonModule": true,
+      "isolatedModules": true,
+      "noEmit": true,
+      "jsx": "react-jsx",
+      "strict": true,
+      "noUnusedLocals": false,
+      "noUnusedParameters": false,
+      "paths": {
+         "@/*": ["./*", "./src/*"]
+      },
+      "allowJs": true,
+      "incremental": true,
+      "esModuleInterop": true,
+      "plugins": [
+         {
+            "name": "next"
+         }
       ]
-    },
-    "allowJs": true,
-    "incremental": true,
-    "esModuleInterop": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ]
-  },
-  "include": [
-    "src",
-    "components",
-    "lib",
-    "app/page.tsx",
-    "vite.config.ts",
-    "server.ts",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "app/api",
-    "app/layout.tsx"
-  ]
+   },
+   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
+   "exclude": ["node_modules", "dist", "vite.config.ts", "server.ts"]
 }
