@@ -1,65 +1,107 @@
 @import "tailwindcss";
 
 @layer base {
-  :root {
-    --font-syne: 'Syne', sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-jakarta: 'Plus Jakarta Sans', sans-serif;
-    --font-serif: 'Cormorant Garamond', serif;
-  }
+   /* =========================================================
+     1. LIGHT MODE (Default Values)
+     ========================================================= */
+   :root {
+      --font-syne: "Syne", sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+      --font-jakarta: "Plus Jakarta Sans", sans-serif;
+      --font-serif: "Cormorant Garamond", serif;
 
-  body {
-    background-color: #050706;
-    color: #F4F5F0;
-    font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
-    overflow-x: hidden;
-  }
+      /* Color Tokens - Light Forest */
+      --bg-main: #f4f6f0;
+      --text-main: #111a13;
+
+      /* Scrollbar Colors - Light */
+      --scrollbar-track: rgba(0, 0, 0, 0.04);
+      --scrollbar-thumb: rgba(46, 82, 38, 0.4);
+      --scrollbar-thumb-hover: rgba(46, 82, 38, 0.7);
+      --scrollbar-glow: rgba(46, 82, 38, 0.2);
+   }
+
+   /* =========================================================
+     2. DARK MODE (Diaktifkan lewat class .dark atau otomatis)
+     ========================================================= */
+   .dark {
+      /* Color Tokens - Dark Forest */
+      --bg-main: #050706;
+      --text-main: #f4f5f0;
+
+      /* Scrollbar Colors - Dark Moss */
+      --scrollbar-track: rgba(8, 11, 8, 0.4);
+      --scrollbar-thumb: rgba(184, 230, 106, 0.25);
+      --scrollbar-thumb-hover: rgba(184, 230, 106, 0.6);
+      --scrollbar-glow: rgba(184, 230, 106, 0.4);
+   }
+
+   /* Aplikasikan variabel ke elemen Body */
+   body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family:
+         var(--font-jakarta),
+         system-ui,
+         -apple-system,
+         sans-serif;
+      overflow-x: hidden;
+      transition:
+         background-color 0.3s ease,
+         color 0.3s ease;
+   }
 }
 
-/* Custom Forest & Moss Scrollbars (Option B & Weather Forecast) */
+/* =========================================================
+   3. CUSTOM SCROLLBARS (Menggunakan CSS Variables)
+   ========================================================= */
+
+/* Weather Scrollbar */
 .weather-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(184, 230, 106, 0.4) rgba(255, 255, 255, 0.03);
+   scrollbar-width: thin;
+   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 .weather-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+   width: 5px;
+   height: 5px;
 }
 
 .weather-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 9999px;
-  margin: 2px;
+   background: var(--scrollbar-track);
+   border-radius: 9999px;
+   margin: 2px;
 }
 
 .weather-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(184, 230, 106, 0.35);
-  border-radius: 9999px;
-  border: 1px solid rgba(184, 230, 106, 0.15);
-  transition: background-color 0.2s ease;
+   background: var(--scrollbar-thumb);
+   border-radius: 9999px;
+   border: 1px solid var(--scrollbar-glow);
+   transition:
+      background-color 0.2s ease,
+      box-shadow 0.2s ease;
 }
 
 .weather-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(184, 230, 106, 0.7);
-  box-shadow: 0 0 8px rgba(184, 230, 106, 0.4);
+   background: var(--scrollbar-thumb-hover);
+   box-shadow: 0 0 8px var(--scrollbar-glow);
 }
 
-/* Global scrollbars for dark forest theme */
+/* Global scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+   width: 6px;
+   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(8, 11, 8, 0.4);
+   background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(184, 230, 106, 0.25);
-  border-radius: 9999px;
+   background: var(--scrollbar-thumb);
+   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(184, 230, 106, 0.5);
+   background: var(--scrollbar-thumb-hover);
 }
