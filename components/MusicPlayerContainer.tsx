@@ -78,6 +78,7 @@ export default function MusicPlayerContainer() {
       return 0;
    });
    const [isPlaying, setIsPlaying] = useState<boolean>(false);
+   const [cursorLight, setCursorLight] = useState({ x: 50, y: 35 });
    const [currentTime, setCurrentTime] = useState<number>(0);
    const [duration, setDuration] = useState<number>(60);
    const [volume, setVolume] = useState<number>(0.8);
@@ -95,6 +96,11 @@ export default function MusicPlayerContainer() {
    const [showAddUrlForm, setShowAddUrlForm] = useState(false);
    const [customUrlForm, setCustomUrlForm] = useState({ title: "", artist: "", url: "" });
    const audioRef = useRef<HTMLAudioElement | null>(null);
+   const audioContextRef = useRef<AudioContext | null>(null);
+   const analyserRef = useRef<AnalyserNode | null>(null);
+   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+   const visualizerFrameRef = useRef<number | null>(null);
+   const [visualizerBars, setVisualizerBars] = useState<number[]>([0.12, 0.2, 0.14, 0.18, 0.1]);
    const fileInputRef = useRef<HTMLInputElement | null>(null);
    const objectUrlsRef = useRef<string[]>([]);
    useEffect(() => {
@@ -170,6 +176,56 @@ export default function MusicPlayerContainer() {
          audioRef.current.volume = isMuted ? 0 : volume;
       }
    }, [volume, isMuted]);
+   useEffect(() => {
+      const audio = audioRef.current;
+      if (!audio || !isPlaying) {
+         if (visualizerFrameRef.current !== null) cancelAnimationFrame(visualizerFrameRef.current);
+         visualizerFrameRef.current = null;
+         setVisualizerBars([0.12, 0.2, 0.14, 0.18, 0.1]);
+         return;
+      }
+      let cancelled = false;
+      try {
+         const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+         if (!AudioContextClass) return;
+         if (!audioContextRef.current) audioContextRef.current = new AudioContextClass();
+         const context = audioContextRef.current;
+         if (!analyserRef.current) {
+            const analyser = context.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.72;
+            analyserRef.current = analyser;
+         }
+         if (!sourceNodeRef.current) {
+            sourceNodeRef.current = context.createMediaElementSource(audio);
+            sourceNodeRef.current.connect(analyserRef.current);
+            analyserRef.current.connect(context.destination);
+         }
+         if (context.state === "suspended") context.resume().catch(() => {});
+         const analyser = analyserRef.current;
+         const data = new Uint8Array(analyser.frequencyBinCount);
+         const tick = () => {
+            if (cancelled) return;
+            analyser.getByteFrequencyData(data);
+            const bins = [2, 4, 7, 11, 16];
+            const next = bins.map((bin, index) => {
+               const value = data[bin] / 255;
+               const neighboring = data[bin + 1] / 255;
+               return Math.max(0.1, Math.min(1, (value * 0.72 + neighboring * 0.28) * (index === 2 ? 1.15 : 1)));
+            });
+            setVisualizerBars(next);
+            visualizerFrameRef.current = requestAnimationFrame(tick);
+         };
+         visualizerFrameRef.current = requestAnimationFrame(tick);
+      } catch (error) {
+         console.warn("Audio visualizer unavailable:", error);
+      }
+      return () => {
+         cancelled = true;
+         if (visualizerFrameRef.current !== null) cancelAnimationFrame(visualizerFrameRef.current);
+         visualizerFrameRef.current = null;
+      };
+   }, [isPlaying, currentTrack?.src]);
    useEffect(() => {
       const audio = audioRef.current;
       if (!audio) return;
@@ -453,6 +509,11 @@ export default function MusicPlayerContainer() {
          {" "}
          <section
             aria-label="Spotify Music Player"
+            onMouseMove={e => {
+               const rect = e.currentTarget.getBoundingClientRect();
+               setCursorLight({ x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 });
+            }}
+            onMouseLeave={() => setCursorLight({ x: 50, y: 35 })}
             onDragOver={e => {
                e.preventDefault();
                setIsDraggingOver(true);
@@ -463,10 +524,10 @@ export default function MusicPlayerContainer() {
                setIsDraggingOver(false);
                handleFileUpload(e.dataTransfer.files);
             }}
-            className={`relative w-full h-full rounded-[24px] p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 border ${isDraggingOver ? "border-[#1DB954] shadow-[0_0_30px_rgba(29,185,84,0.35)] bg-[#0A100A]/95" : "border-white/[0.08] hover:border-white/[0.14]"}`}
-            style={{ background: "rgba(8, 11, 8, 0.65)", backdropFilter: "blur(28px) saturate(150%)", WebkitBackdropFilter: "blur(28px) saturate(150%)", boxShadow: "0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)" }}>
+            className={`lumilist-player-motion relative w-full h-full rounded-[24px] p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 border ${isDraggingOver ? "border-[#B8E66A] shadow-[0_0_30px_rgba(184,230,106,0.28)] bg-[#0A100A]/95" : "border-white/[0.08] hover:border-white/[0.14]"}`}
+            style={{ background: `radial-gradient(560px circle at ${cursorLight.x}% ${cursorLight.y}%, rgba(184,230,106,0.105), transparent 58%), rgba(12, 14, 9, 0.72)`, backdropFilter: "blur(28px) saturate(150%)", WebkitBackdropFilter: "blur(28px) saturate(150%)", boxShadow: "0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)" }}>
             {" "}
-            {/* Real HTML5 Audio Element */}{" "}
+            <style>{`.lumilist-player-motion button,.lumilist-player-motion [role="button"]{transition:transform .22s cubic-bezier(.2,.8,.2,1),background-color .22s,border-color .22s,box-shadow .22s}.lumilist-player-motion button:hover{transform:translateY(-1px)}.lumilist-player-motion button:active{transform:scale(.96)}.lumilist-player-motion .animate-spin{animation-duration:8s}@keyframes lumilist-equalizer{0%,100%{transform:scaleY(.3);opacity:.55}50%{transform:scaleY(1);opacity:1}}.lumilist-eq{transform-origin:bottom;animation:lumilist-equalizer .8s ease-in-out infinite}.lumilist-eq:nth-child(2){animation-delay:.12s}.lumilist-eq:nth-child(3){animation-delay:.24s}.lumilist-eq:nth-child(4){animation-delay:.36s}@media(prefers-reduced-motion:reduce){.lumilist-player-motion *{animation-duration:.01ms!important;transition-duration:.01ms!important}}`}</style> {/* Real HTML5 Audio Element */}{" "}
             <audio
                ref={audioRef}
                preload="auto"
@@ -532,26 +593,26 @@ export default function MusicPlayerContainer() {
                   {" "}
                   <div className="flex items-center gap-2 min-w-0">
                      {" "}
-                     <div className="w-5 h-5 rounded-full bg-[#1DB954]/20 border border-[#1DB954]/40 flex items-center justify-center shrink-0">
+                     <div className="w-5 h-5 rounded-full bg-[#B8E66A]/20 border border-[#B8E66A]/40 flex items-center justify-center shrink-0">
                         {" "}
-                        <Music className="w-2.5 h-2.5 text-[#1DB954]" />{" "}
+                        <Music className="w-2.5 h-2.5 text-[#B8E66A]" />{" "}
                      </div>{" "}
                      <span className="text-xs font-semibold tracking-wider text-[#F4F5F0] uppercase truncate" style={{ fontFamily: "var(--font-syne), sans-serif" }}>
                         {" "}
                         Player{" "}
                      </span>{" "}
-                     <span className={`w-1.5 h-1.5 rounded-full ${isPlaying ? "bg-[#1DB954] " : "bg-white/30"} shrink-0`} />{" "}
+                     <span className={`w-1.5 h-1.5 rounded-full ${isPlaying ? "bg-[#B8E66A] " : "bg-white/30"} shrink-0`} />{" "}
                   </div>{" "}
                   {/* Quick Actions Row */}{" "}
                   <div className="flex items-center gap-1.5 shrink-0">
                      {" "}
                      {/* Toggle in-card Drawer */}{" "}
-                     <button type="button" onClick={() => setShowPlaylistDrawer(!showPlaylistDrawer)} className={`p-1.5 rounded-lg border transition-all cursor-pointer ${showPlaylistDrawer ? "bg-[#1DB954]/20 border-[#1DB954]/40 text-[#1DB954]" : "bg-white/[0.04] border-white/[0.08] text-[#969A91] hover:text-[#F4F5F0]"}`} title="Lihat Lagu di Playlist" aria-label="Toggle playlist drawer">
+                     <button type="button" onClick={() => setShowPlaylistDrawer(!showPlaylistDrawer)} className={`p-1.5 rounded-lg border transition-all cursor-pointer ${showPlaylistDrawer ? "bg-[#B8E66A]/20 border-[#B8E66A]/40 text-[#B8E66A]" : "bg-white/[0.04] border-white/[0.08] text-[#969A91] hover:text-[#F4F5F0]"}`} title="Lihat Lagu di Playlist" aria-label="Toggle playlist drawer">
                         {" "}
                         <ListMusic className="w-3.5 h-3.5" />{" "}
                      </button>{" "}
                      {/* Upload file */}{" "}
-                     <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#1DB954]/15 hover:bg-[#1DB954]/25 border border-[#1DB954]/30 text-[#1DB954] text-[11px] font-medium transition-all cursor-pointer" title="Upload lagu (.mp3, .wav)" aria-label="Upload audio">
+                     <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#B8E66A]/15 hover:bg-[#B8E66A]/25 border border-[#B8E66A]/30 text-[#B8E66A] text-[11px] font-medium transition-all cursor-pointer" title="Upload lagu (.mp3, .wav)" aria-label="Upload audio">
                         {" "}
                         <Upload className="w-3 h-3" /> <span>Upload</span>{" "}
                      </button>{" "}
@@ -575,13 +636,13 @@ export default function MusicPlayerContainer() {
                               setActivePlaylistId(pl.id);
                               setCurrentTrackIndex(0);
                            }}
-                           className={`text-[10px] font-medium px-2 py-0.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${pl.id === activePlaylist.id ? "bg-[#1DB954] text-black font-semibold " : "text-[#969A91] hover:text-[#F4F5F0] hover:bg-white/[0.06]"}`}>
+                           className={`text-[10px] font-medium px-2 py-0.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${pl.id === activePlaylist.id ? "bg-[#B8E66A] text-black font-semibold " : "text-[#969A91] hover:text-[#F4F5F0] hover:bg-white/[0.06]"}`}>
                            {" "}
                            {pl.name}{" "}
                         </button>
                      ))}{" "}
                   </div>{" "}
-                  <button type="button" onClick={() => setShowManagerModal(true)} className="p-1 rounded text-white/40 hover:text-[#1DB954] shrink-0 cursor-pointer transition-colors" title="Tambah / Atur Playlist">
+                  <button type="button" onClick={() => setShowManagerModal(true)} className="p-1 rounded text-white/40 hover:text-[#B8E66A] shrink-0 cursor-pointer transition-colors" title="Tambah / Atur Playlist">
                      {" "}
                      <Plus className="w-3.5 h-3.5" />{" "}
                   </button>{" "}
@@ -604,7 +665,7 @@ export default function MusicPlayerContainer() {
                                  <Trash2 className="w-2.5 h-2.5" /> <span>Hapus Bawaan</span>{" "}
                               </button>
                            ) : (
-                              <button type="button" onClick={handleRestoreDefaultTracks} className="text-[10px] text-[#1DB954] hover:text-[#1ed760] flex items-center gap-0.5 cursor-pointer transition-colors" title="Pulihkan lagu default bawaan">
+                              <button type="button" onClick={handleRestoreDefaultTracks} className="text-[10px] text-[#B8E66A] hover:text-[#D0F58A] flex items-center gap-0.5 cursor-pointer transition-colors" title="Pulihkan lagu default bawaan">
                                  {" "}
                                  <RotateCcw className="w-2.5 h-2.5" /> <span>Pulihkan Bawaan</span>{" "}
                               </button>
@@ -615,7 +676,7 @@ export default function MusicPlayerContainer() {
                         <div className="p-3 text-center text-white/50 text-[11px] space-y-1.5">
                            {" "}
                            <p>Playlist ini kosong.</p>{" "}
-                           <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30 hover:bg-[#1DB954]/30 cursor-pointer text-[10px]">
+                           <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#B8E66A]/20 text-[#B8E66A] border border-[#B8E66A]/30 hover:bg-[#B8E66A]/30 cursor-pointer text-[10px]">
                               {" "}
                               <Upload className="w-3 h-3" /> <span>Upload Lagu Anda</span>{" "}
                            </button>{" "}
@@ -630,7 +691,7 @@ export default function MusicPlayerContainer() {
                                     setCurrentTrackIndex(idx);
                                     setIsPlaying(true);
                                  }}
-                                 className={`group flex items-center justify-between px-2 py-1.5 rounded-xl cursor-pointer transition-colors ${isCurrent ? "bg-[#1DB954]/15 text-[#1DB954] border border-[#1DB954]/30" : "hover:bg-white/[0.05] text-[#D8DCD2]"}`}>
+                                 className={`group flex items-center justify-between px-2 py-1.5 rounded-xl cursor-pointer transition-colors ${isCurrent ? "bg-[#B8E66A]/15 text-[#B8E66A] border border-[#B8E66A]/30" : "hover:bg-white/[0.05] text-[#D8DCD2]"}`}>
                                  {" "}
                                  <div className="flex items-center gap-1.5 min-w-0 pr-1">
                                     {" "}
@@ -642,7 +703,7 @@ export default function MusicPlayerContainer() {
                                  </div>{" "}
                                  <div className="flex items-center gap-0.5 shrink-0">
                                     {" "}
-                                    {isCurrent && isPlaying && <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954] mr-1" />} {/* Move Up */}{" "}
+                                    {isCurrent && isPlaying && <span className="w-1.5 h-1.5 rounded-full bg-[#B8E66A] mr-1" />} {/* Move Up */}{" "}
                                     {idx > 0 && (
                                        <button type="button" onClick={e => handleMoveTrack(idx, "up", e)} className="p-1 text-white/30 hover:text-white transition-colors cursor-pointer" title="Pindah ke atas">
                                           {" "}
@@ -679,9 +740,9 @@ export default function MusicPlayerContainer() {
                         {/* Disc grooves */}{" "}
                         <div className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center">
                            {" "}
-                           <div className="w-5 h-5 rounded-full border border-[#1DB954]/30 flex items-center justify-center bg-[#0C150E]">
+                           <div className="w-5 h-5 rounded-full border border-[#B8E66A]/30 flex items-center justify-center bg-[#0C150E]">
                               {" "}
-                              <div className="w-2 h-2 rounded-full bg-[#1DB954] shadow-[0_0_6px_#1DB954]" />{" "}
+                              <div className="w-2 h-2 rounded-full bg-[#B8E66A] shadow-[0_0_6px_#B8E66A]" />{" "}
                            </div>{" "}
                         </div>{" "}
                      </div>{" "}
@@ -698,15 +759,15 @@ export default function MusicPlayerContainer() {
                                  {" "}
                                  {currentTrack.title}{" "}
                               </h4>{" "}
-                              {currentTrack.isUploaded ? <span className="px-1 py-0.2 rounded bg-white/[0.08] text-[9px] font-mono text-white/60 shrink-0">Upload</span> : currentTrack.isCustomUrl ? <span className="px-1 py-0.2 rounded bg-blue-500/20 text-[9px] font-mono text-blue-400 shrink-0">URL</span> : <span className="px-1 py-0.2 rounded bg-[#1DB954]/15 text-[9px] font-mono text-[#1DB954] shrink-0">Lofi</span>}{" "}
+                              {currentTrack.isUploaded ? <span className="px-1 py-0.2 rounded bg-white/[0.08] text-[9px] font-mono text-white/60 shrink-0">Upload</span> : currentTrack.isCustomUrl ? <span className="px-1 py-0.2 rounded bg-blue-500/20 text-[9px] font-mono text-blue-400 shrink-0">URL</span> : <span className="px-1 py-0.2 rounded bg-[#B8E66A]/15 text-[9px] font-mono text-[#B8E66A] shrink-0">Lofi</span>}{" "}
                            </div>{" "}
                            <div className="flex items-center justify-between gap-1 mt-1">
                               {" "}
                               <p className="text-[11px] text-[#969A91] truncate leading-none">{currentTrack.artist}</p> {/* Animated Audio Equalizer Bars */}{" "}
-                              <div className="flex items-end gap-0.5 h-3 shrink-0 ml-1">
+                              <div className="flex items-end justify-center gap-[3px] w-[30px] h-3 shrink-0 ml-1" aria-label={isPlaying ? "Visualisasi audio aktif" : "Visualisasi audio berhenti"} role="img">
                                  {" "}
-                                 {[0, 1, 2, 3, 4].map(bar => (
-                                    <span key={bar} className={`w-0.5 rounded-full bg-[#1DB954] transition-all duration-300 ${isPlaying ? (bar % 2 === 0 ? "h-3 " : "h-2 ") : "h-1 opacity-30"}`} style={{ animationDuration: isPlaying ? `${0.5 + bar * 0.15}s` : undefined }} />
+                                 {visualizerBars.map((level, bar) => (
+                                    <span key={bar} className="w-[3px] rounded-full bg-[#B8E66A] transition-[height,opacity] duration-75 ease-out" style={{ height: isPlaying ? `${Math.max(2, level * 12)}px` : "3px", opacity: isPlaying ? 0.55 + level * 0.45 : 0.28, boxShadow: isPlaying && level > 0.55 ? "0 0 5px rgba(184,230,106,0.22)" : "none" }} />
                                  ))}{" "}
                               </div>{" "}
                            </div>{" "}
@@ -735,7 +796,7 @@ export default function MusicPlayerContainer() {
                {/* Scrubbable Seekbar */}{" "}
                <div className="space-y-1 mb-3">
                   {" "}
-                  <input type="range" min={0} max={duration || 60} value={currentTime} disabled={!currentTrack} onChange={handleSeek} aria-label="Progress lagu" className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#1DB954] disabled:opacity-40" />{" "}
+                  <input type="range" min={0} max={duration || 60} value={currentTime} disabled={!currentTrack} onChange={handleSeek} aria-label="Progress lagu" className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#B8E66A] disabled:opacity-40" />{" "}
                   <div className="flex justify-between text-[10px] font-mono text-[#969A91]">
                      {" "}
                      <span>{formatTime(currentTime)}</span> <span>{formatTime(duration)}</span>{" "}
@@ -749,7 +810,7 @@ export default function MusicPlayerContainer() {
                <div className="flex items-center justify-center gap-3">
                   {" "}
                   {/* Shuffle button */}{" "}
-                  <button type="button" onClick={() => setIsShuffle(!isShuffle)} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isShuffle ? "text-[#1DB954]" : "text-[#969A91] hover:text-[#F4F5F0]"}`} title={isShuffle ? "Shuffle Aktif" : "Acak Lagu"} aria-label="Shuffle">
+                  <button type="button" onClick={() => setIsShuffle(!isShuffle)} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isShuffle ? "text-[#B8E66A]" : "text-[#969A91] hover:text-[#F4F5F0]"}`} title={isShuffle ? "Shuffle Aktif" : "Acak Lagu"} aria-label="Shuffle">
                      {" "}
                      <Shuffle className="w-3.5 h-3.5" />{" "}
                   </button>{" "}
@@ -759,7 +820,7 @@ export default function MusicPlayerContainer() {
                      <SkipBack className="w-4 h-4" />{" "}
                   </button>{" "}
                   {/* Play / Pause button */}{" "}
-                  <button type="button" onClick={togglePlay} disabled={isLoadingAudio || !currentTrack} className="w-9 h-9 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-40 disabled:hover:scale-100" title={isPlaying ? "Jeda" : "Putar Lagu"} aria-label={isPlaying ? "Pause" : "Play"}>
+                  <button type="button" onClick={togglePlay} disabled={isLoadingAudio || !currentTrack} className="w-9 h-9 rounded-full bg-[#B8E66A] hover:bg-[#D0F58A] text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-40 disabled:hover:scale-100" title={isPlaying ? "Jeda" : "Putar Lagu"} aria-label={isPlaying ? "Pause" : "Play"}>
                      {" "}
                      {isLoadingAudio ? <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : isPlaying ? <Pause className="w-4 h-4 fill-black" /> : <Play className="w-4 h-4 fill-black ml-0.5" />}{" "}
                   </button>{" "}
@@ -769,7 +830,7 @@ export default function MusicPlayerContainer() {
                      <SkipForward className="w-4 h-4" />{" "}
                   </button>{" "}
                   {/* Repeat / Loop */}{" "}
-                  <button type="button" onClick={() => setIsLooping(!isLooping)} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isLooping ? "text-[#1DB954]" : "text-[#969A91] hover:text-[#F4F5F0]"}`} title={isLooping ? "Ulang Lagu Aktif" : "Ulang Lagu"} aria-label="Loop Track">
+                  <button type="button" onClick={() => setIsLooping(!isLooping)} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isLooping ? "text-[#B8E66A]" : "text-[#969A91] hover:text-[#F4F5F0]"}`} title={isLooping ? "Ulang Lagu Aktif" : "Ulang Lagu"} aria-label="Loop Track">
                      {" "}
                      <Repeat className="w-3.5 h-3.5" />{" "}
                   </button>{" "}
@@ -779,7 +840,7 @@ export default function MusicPlayerContainer() {
                   {" "}
                   <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#969A91]">
                      {" "}
-                     <Sparkles className="w-3 h-3 text-[#1DB954]/80" /> <span>{currentPlaylistTracks.length > 0 ? `${safeIndex + 1}/${currentPlaylistTracks.length}` : "0/0"}</span>{" "}
+                     <Sparkles className="w-3 h-3 text-[#B8E66A]/80" /> <span>{currentPlaylistTracks.length > 0 ? `${safeIndex + 1}/${currentPlaylistTracks.length}` : "0/0"}</span>{" "}
                   </div>{" "}
                   <div className="flex items-center gap-1.5">
                      {" "}
@@ -798,7 +859,7 @@ export default function MusicPlayerContainer() {
                            if (isMuted) setIsMuted(false);
                         }}
                         aria-label="Volume slider"
-                        className="w-16 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#1DB954]"
+                        className="w-16 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#B8E66A]"
                      />{" "}
                   </div>{" "}
                </div>{" "}
@@ -815,9 +876,9 @@ export default function MusicPlayerContainer() {
                      {" "}
                      <div className="flex items-center gap-2.5">
                         {" "}
-                        <div className="w-8 h-8 rounded-xl bg-[#1DB954]/20 border border-[#1DB954]/30 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-xl bg-[#B8E66A]/20 border border-[#B8E66A]/30 flex items-center justify-center">
                            {" "}
-                           <ListMusic className="w-4 h-4 text-[#1DB954]" />{" "}
+                           <ListMusic className="w-4 h-4 text-[#B8E66A]" />{" "}
                         </div>{" "}
                         <div>
                            {" "}
@@ -846,7 +907,7 @@ export default function MusicPlayerContainer() {
                               const isActive = pl.id === activePlaylist.id;
                               const isEditing = editingPlaylistId === pl.id;
                               return (
-                                 <div key={pl.id} className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${isActive ? "bg-[#1DB954]/15 border-[#1DB954]/50 text-white" : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15]"}`}>
+                                 <div key={pl.id} className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${isActive ? "bg-[#B8E66A]/15 border-[#B8E66A]/50 text-white" : "bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15]"}`}>
                                     {" "}
                                     <div
                                        className="min-w-0 flex-1 cursor-pointer"
@@ -859,7 +920,7 @@ export default function MusicPlayerContainer() {
                                           <div className="flex items-center gap-1">
                                              {" "}
                                              <input type="text" value={editingPlaylistName} onChange={e => setEditingPlaylistName(e.target.value)} className="w-full bg-black/60 border border-white/20 rounded px-1.5 py-0.5 text-xs text-white" autoFocus />{" "}
-                                             <button type="button" onClick={handleSaveRenamePlaylist} className="p-1 text-[#1DB954] hover:text-white">
+                                             <button type="button" onClick={handleSaveRenamePlaylist} className="p-1 text-[#B8E66A] hover:text-white">
                                                 {" "}
                                                 <Check className="w-3 h-3" />{" "}
                                              </button>{" "}
@@ -873,7 +934,7 @@ export default function MusicPlayerContainer() {
                                              {" "}
                                              <div className="flex items-center gap-1.5">
                                                 {" "}
-                                                <span className="font-semibold text-xs truncate">{pl.name}</span> {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954]" />}{" "}
+                                                <span className="font-semibold text-xs truncate">{pl.name}</span> {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#B8E66A]" />}{" "}
                                              </div>{" "}
                                              <span className="text-[10px] text-white/40">{pl.trackIds.length} lagu</span>{" "}
                                           </div>
@@ -918,9 +979,9 @@ export default function MusicPlayerContainer() {
                               onKeyDown={e => {
                                  if (e.key === "Enter") handleCreatePlaylist();
                               }}
-                              className="flex-1 bg-white/[0.04] border border-white/[0.1] rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#1DB954]"
+                              className="flex-1 bg-white/[0.04] border border-white/[0.1] rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#B8E66A]"
                            />{" "}
-                           <button type="button" onClick={handleCreatePlaylist} disabled={!newPlaylistName.trim()} className="px-3 py-1.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 text-black text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0">
+                           <button type="button" onClick={handleCreatePlaylist} disabled={!newPlaylistName.trim()} className="px-3 py-1.5 rounded-xl bg-[#B8E66A] hover:bg-[#D0F58A] disabled:opacity-40 text-black text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0">
                               {" "}
                               <Plus className="w-3.5 h-3.5" /> <span>Buat Playlist</span>{" "}
                            </button>{" "}
@@ -941,7 +1002,7 @@ export default function MusicPlayerContainer() {
                                  <Trash2 className="w-3.5 h-3.5" /> <span>Hapus Semua Lagu Bawaan</span>{" "}
                               </button>
                            ) : (
-                              <button type="button" onClick={handleRestoreDefaultTracks} className="px-3 py-1.5 rounded-xl bg-[#1DB954]/20 hover:bg-[#1DB954]/30 border border-[#1DB954]/40 text-[#1DB954] text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer">
+                              <button type="button" onClick={handleRestoreDefaultTracks} className="px-3 py-1.5 rounded-xl bg-[#B8E66A]/20 hover:bg-[#B8E66A]/30 border border-[#B8E66A]/40 text-[#B8E66A] text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer">
                                  {" "}
                                  <RotateCcw className="w-3.5 h-3.5" /> <span>Pulihkan Lagu Bawaan</span>{" "}
                               </button>
@@ -963,7 +1024,7 @@ export default function MusicPlayerContainer() {
                                  {" "}
                                  <Link2 className="w-3 h-3" /> <span>Tambah Link/URL</span>{" "}
                               </button>{" "}
-                              <button type="button" onClick={() => fileInputRef.current?.click()} className="px-2 py-1 rounded-lg bg-[#1DB954]/20 hover:bg-[#1DB954]/30 border border-[#1DB954]/35 text-[#1DB954] text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors">
+                              <button type="button" onClick={() => fileInputRef.current?.click()} className="px-2 py-1 rounded-lg bg-[#B8E66A]/20 hover:bg-[#B8E66A]/30 border border-[#B8E66A]/35 text-[#B8E66A] text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors">
                                  {" "}
                                  <Upload className="w-3 h-3" /> <span>Upload File</span>{" "}
                               </button>{" "}
@@ -988,7 +1049,7 @@ export default function MusicPlayerContainer() {
                               <input type="url" placeholder="URL Audio (contoh: https\://domain.com/lagu.mp3)" value={customUrlForm.url} onChange={e => setCustomUrlForm({ ...customUrlForm, url: e.target.value })} className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white" />{" "}
                               <div className="flex justify-end">
                                  {" "}
-                                 <button type="button" onClick={handleAddCustomUrlTrack} disabled={!customUrlForm.title.trim() || !customUrlForm.url.trim()} className="px-3 py-1 rounded-lg bg-[#1DB954] text-black font-semibold text-xs disabled:opacity-40 cursor-pointer">
+                                 <button type="button" onClick={handleAddCustomUrlTrack} disabled={!customUrlForm.title.trim() || !customUrlForm.url.trim()} className="px-3 py-1 rounded-lg bg-[#B8E66A] text-black font-semibold text-xs disabled:opacity-40 cursor-pointer">
                                     {" "}
                                     Simpan Lagu ke Playlist{" "}
                                  </button>{" "}
@@ -1015,7 +1076,7 @@ export default function MusicPlayerContainer() {
                                              {" "}
                                              <div className="flex items-center gap-1.5">
                                                 {" "}
-                                                <span className="font-medium text-xs text-white truncate">{track.title}</span> {track.isDefault ? <span className="px-1 rounded bg-[#1DB954]/15 text-[#1DB954] text-[9px] font-mono">Bawaan</span> : track.isUploaded ? <span className="px-1 rounded bg-white/[0.08] text-white/60 text-[9px] font-mono">Upload</span> : <span className="px-1 rounded bg-blue-500/20 text-blue-400 text-[9px] font-mono">URL</span>}{" "}
+                                                <span className="font-medium text-xs text-white truncate">{track.title}</span> {track.isDefault ? <span className="px-1 rounded bg-[#B8E66A]/15 text-[#B8E66A] text-[9px] font-mono">Bawaan</span> : track.isUploaded ? <span className="px-1 rounded bg-white/[0.08] text-white/60 text-[9px] font-mono">Upload</span> : <span className="px-1 rounded bg-blue-500/20 text-blue-400 text-[9px] font-mono">URL</span>}{" "}
                                              </div>{" "}
                                              <span className="text-[10px] text-white/50 truncate block">{track.artist}</span>{" "}
                                           </div>{" "}
@@ -1049,7 +1110,7 @@ export default function MusicPlayerContainer() {
                   <div className="flex items-center justify-between border-t border-white/[0.08] pt-3 text-xs">
                      {" "}
                      <span className="text-white/40">Penyimpanan lokal otomatis tersimpan permanen saat refresh.</span>{" "}
-                     <button type="button" onClick={() => setShowManagerModal(false)} className="px-4 py-1.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold transition-all cursor-pointer">
+                     <button type="button" onClick={() => setShowManagerModal(false)} className="px-4 py-1.5 rounded-xl bg-[#B8E66A] hover:bg-[#D0F58A] text-black font-semibold transition-all cursor-pointer">
                         {" "}
                         Selesai{" "}
                      </button>{" "}
